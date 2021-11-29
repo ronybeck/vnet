@@ -4,5 +4,7 @@ Section: Internet
 Priority: optional
 Architecture: amd64
 Depends: libqt5network5 (>= 5.12.8), libqt5gui5 (>= 5.12.8)
+Build-Depends: debhelper (>= 9), qtbase5-dev, qtbase5-dev-tools, qt5-qmake
 Maintainer: Ronnie Beck <ronybeck@themenz.biz>
+Homepage: https://github.com/ronybeck/vnet
 Description: A nifty GUI based tool for getting files to and from your Amiga
