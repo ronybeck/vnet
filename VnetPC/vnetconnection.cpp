@@ -22,7 +22,11 @@ VNetConnection::VNetConnection(QObject *parent) :
     connect( &m_Socket, &QTcpSocket::connected, this, &VNetConnection::onConnectedSlot );
     connect( &m_Socket, &QTcpSocket::disconnected, this, &VNetConnection::onDisconnectedSlot );
     connect( &m_Socket, &QTcpSocket::readyRead, this, &VNetConnection::onReadReadySlot );
+#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
     connect( &m_Socket, &QTcpSocket::errorOccurred, this, &VNetConnection::onErrorSlot );
+#else
+    connect( &m_Socket, static_cast<void (QTcpSocket::*)(QAbstractSocket::SocketError)>(&QAbstractSocket::error), this, &VNetConnection::onErrorSlot );
+#endif
 
     //Set a message buffer
     m_IncomingMessageBuffer = static_cast<ProtocolMessage_t*>( calloc( 1, INPUT_BUFFER_SIZE ) );

@@ -1,0 +1,8 @@
+Package: VnetPC
+Version: 0.0-5
+Section: Internet
+Priority: optional
+Architecture: amd64
+Depends: libqt5network5 (>= 5.12.8), libqt5gui5 (>= 5.12.8)
+Maintainer: Ronnie Beck <ronybeck@themenz.biz>
+Description: A nifty GUI based tool for getting files to and from your Amiga

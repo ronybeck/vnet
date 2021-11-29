@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMutexLocker>
 #include <QWaitCondition>
+#include <QVector>
 
 #include "protocolTypes.h"
 
