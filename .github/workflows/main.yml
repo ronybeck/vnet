@@ -34,7 +34,7 @@ jobs:
       
       # Install pre-reuisites
       - name: Install Prerequisites
-        run: sudo apt-get install git-core gcc g++ make cmake qtbase5-dev qtbase5-dev-tools qt5-qmake dh-make build-essential pdebuild
+        run: sudo apt-get install git-core gcc g++ make cmake qtbase5-dev qtbase5-dev-tools qt5-qmake dh-make build-essential pbuilder
 
       # Runs a single command using the runners shell
       - name: Build
