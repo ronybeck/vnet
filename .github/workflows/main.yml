@@ -40,6 +40,11 @@ jobs:
       - name: Build
         run: ./build_debian.sh
 
+
+      # Runs a single command using the runners shell
+      - name: List files
+        run: ls -la
+
       
       #Upload the ROM
       - name: Upload Debian Package
