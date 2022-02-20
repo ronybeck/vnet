@@ -12,11 +12,14 @@
 #include <dos/dostags.h>
 #include <workbench/workbench.h>
 #include <proto/exec.h>
+#include <exec/lists.h>
 #include <sys/types.h>
 #include <clib/icon_protos.h>
 #include <clib/dos_protos.h>
 #define __BSDSOCKET_NOLIBBASE__
 #include <proto/bsdsocket.h>
+
+#define DBGOUT 1
 
 #include "protocol.h"
 #include "VNetUtil.h"
@@ -24,6 +27,22 @@
 extern char g_KeepServerRunning;
 
 static void discoveryThread();
+
+static void getOSVersion( char *version, LONG len )
+{
+	struct Library *ExecLibrary = NULL;
+
+	//Did we get the DOSBase
+	dbglog( "[getOSVersion] Opening Exec Library.\n" );
+	ExecLibrary = OpenLibrary( "exec.library", 0 );
+	if( ExecLibrary != NULL )
+	{
+		dbglog( "[getOSVersion] Exec Library opened.  Examining version.\n" );
+		snprintf( version, len, "%d.%d", ExecLibrary->lib_Version, ExecLibrary->lib_Revision );
+		dbglog( "[getOSVersion] OS Version is %s.\n", version );
+	}
+	dbglog( "[getOSVersion] Done.\n" );
+}
 
 void startDiscoveryThread()
 {
@@ -63,6 +82,36 @@ void startDiscoveryThread()
 	}
 }
 
+static void printInterfaceDebug()
+{
+	dbglog( "[discoveryThread] Searching for network interfaces.\n" );
+	struct List *interfaceList;
+	struct Node *node;
+	UBYTE interfaceCount = 0;
+
+	//Get the list
+	interfaceList = ObtainInterfaceList();
+	if( interfaceList == NULL )
+	{
+		dbglog( "[discoveryThread] unable to get a list of network interfaces.\n" );
+		return;
+	}
+	node = interfaceList->lh_Head;
+
+	while( node )
+	{
+		if( node->ln_Name == 0 )
+			break;
+		dbglog( "[discoveryThread] Found interface: %s\n", node->ln_Name );
+		node = node->ln_Succ;
+		interfaceCount++;
+	}
+	dbglog( "[discoveryThread] %d network interfaces discovered.\n", interfaceCount );
+	dbglog( "[discoveryThread] Network interface discovery completed.\n" );
+	ReleaseInterfaceList( interfaceList );
+}
+
+#define ENABLE_DISCOVERY_REPLY 0
 static void discoveryThread()
 {
 	dbglog( "[discoveryThread] Client thread started.\n" );
@@ -70,6 +119,8 @@ static void discoveryThread()
 	struct Library *DOSBase = NULL;
 	struct Library *SocketBase = NULL;
 	int returnCode = 0;
+	int yes = 1;
+	char *osVersion[32];
 
 	//Did we get the DOSBase
 	DOSBase = OpenLibrary( "dos.library", 0 );
@@ -90,6 +141,9 @@ static void discoveryThread()
 		return;
 	}
 
+	printInterfaceDebug();
+
+#if ENABLE_DISCOVERY_REPLY
 	//Open a new server port for this client
 	dbglog( "[discoveryThread]  Opening client socket.\n" );
 	SOCKET discoverySocket = socket(AF_INET, SOCK_DGRAM, 0 );
@@ -100,7 +154,6 @@ static void discoveryThread()
 	}
 
 	dbglog( "[discoveryThread] Setting reuse socket options.\n" );
-	int yes = 1;
 	returnCode = setsockopt( discoverySocket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 	if(returnCode == SOCKET_ERROR)
 	{
@@ -109,14 +162,6 @@ static void discoveryThread()
 		return;
 	}
 
-	dbglog( "[discoveryThread] Setting broadcast socket options.\n" );
-	returnCode = setsockopt( discoverySocket, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
-	if(returnCode == SOCKET_ERROR)
-	{
-		dbglog( "[discoveryThread] Error setting broadcast socket options. Exiting.\n" );
-		CloseSocket( discoverySocket );
-		return;
-	}
 
 
 
@@ -164,6 +209,53 @@ static void discoveryThread()
 		return;
 	}
 	dbglog( "[discoverySocket] Bound to port %d\n", BROADCAST_PORTNUMBER );
+#endif
+
+	//Create a socket for broadcasting
+	struct sockaddr_in broadcastAddr;
+	memset( &broadcastAddr, 0, sizeof( broadcastAddr ) );
+	broadcastAddr.sin_family = AF_INET;
+	broadcastAddr.sin_addr.s_addr = INADDR_BROADCAST;
+	broadcastAddr.sin_port = htons( BROADCAST_PORTNUMBER );
+
+	//Create a reply socket for sending the broadcast
+	dbglog( "[discoveryThread]  Opening broadcast socket.\n" );
+	SOCKET broadcastSocket = socket(AF_INET, SOCK_DGRAM, 0 );
+	if( broadcastSocket < 0 )
+	{
+		dbglog( "[discoveryThread] Error creating broadcast UDP Socket.\n" );
+
+		//Shutdown the discovery socket
+#if ENABLE_DISCOVERY_REPLY
+		CloseSocket( discoverySocket );
+#endif
+		return;
+	}
+
+	dbglog( "[discoveryThread] Setting reuse socket options.\n" );
+	returnCode = setsockopt( broadcastSocket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	if(returnCode == SOCKET_ERROR)
+	{
+		dbglog( "[discoveryThread] Error setting reuse socket options. Exiting.\n" );
+#if ENABLE_DISCOVERY_REPLY
+		CloseSocket( discoverySocket );
+#endif
+		CloseSocket( broadcastSocket );
+		return;
+	}
+
+	dbglog( "[discoveryThread] Setting broadcast socket options.\n" );
+	returnCode = setsockopt( broadcastSocket, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
+	if(returnCode == SOCKET_ERROR)
+	{
+		dbglog( "[discoveryThread] Error setting broadcast socket options. Exiting.\n" );
+#if ENABLE_DISCOVERY_REPLY
+		CloseSocket( discoverySocket );
+#endif
+		CloseSocket( broadcastSocket );
+		return;
+	}
+
 
 
 	//Prepare our messages
@@ -199,11 +291,19 @@ static void discoveryThread()
 			dbglog( "[discoverySocket] ToolTypes osname: %s\n", osname );
 			strncpy( announceMessage->osName, osname, sizeof( announceMessage->name ) );
 		}
-		STRPTR osversion = FindToolType( diskObject->do_ToolTypes, "osversion" );
-		if( osname )
+		//getOSVersion( osVersion, sizeof( osVersion ) );	//WIP
+		if( strlen( osVersion ) == 0 )
 		{
-			dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osversion );
-			strncpy( announceMessage->osVersion, osversion, sizeof( announceMessage->osVersion ) );
+			STRPTR osversion = FindToolType( diskObject->do_ToolTypes, "osversion" );
+			if( osname )
+			{
+				dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osversion );
+				strncpy( announceMessage->osVersion, osversion, sizeof( announceMessage->osVersion ) );
+			}
+		}else
+		{
+			dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osVersion );
+			strncpy( announceMessage->osVersion, osVersion, sizeof( announceMessage->osVersion ) );
 		}
 		STRPTR hardware = FindToolType( diskObject->do_ToolTypes, (STRPTR)"hardware" );
 		if( osname )
@@ -223,6 +323,7 @@ static void discoveryThread()
 	char keepThisConnectionRunning = 1;
 	while( g_KeepServerRunning && keepThisConnectionRunning )
 	{
+#if ENABLE_DISCOVERY_REPLY
 		socklen_t requestorAddressLen = sizeof( *requestorAddress );
 		memset( requestorAddress, 0, requestorAddressLen );
 		bytesRead = recvfrom( 	discoverySocket,
@@ -256,8 +357,13 @@ static void discoveryThread()
 		//If we got this far, then we should send the device info
 		//dbglog( "[discoverySocket] Sending reply to device discovery.\n" );
 		bytesSent = sendto( discoverySocket, announceMessage, announceMessage->header.length, 0, requestorAddress, requestorAddressLen );
-		(void)bytesSent;
+
+#endif
 		//dbglog( "[discoverySocket] Sent %d bytes.\n", bytesSent );
+		bytesSent = sendto( broadcastSocket, announceMessage, announceMessage->header.length, 0, (struct sockaddr *)&broadcastAddr, sizeof( broadcastAddr ) );
+		dbglog( "[discoverySocket] Sent %d bytes.\n", bytesSent );
+		//(void)bytesSent;
+
 
 		//To prevent overloading the amiga....
 		Delay( 100 );
@@ -269,9 +375,14 @@ static void discoveryThread()
 	FreeVec( announceMessage );
 	FreeVec( requestorAddress );
 
+#if ENABLE_DISCOVERY_REPLY
 	//Now close the socket because we are done here
 	dbglog( "[discoverySocket] Closing client thread for socket 0x%08x.\n", discoverySocket );
 	CloseSocket( discoverySocket );
+#endif
+
+	dbglog( "[discoverySocket] Closing client thread for socket 0x%08x.\n", broadcastSocket );
+	CloseSocket( broadcastSocket );
 
 	CloseLibrary( DOSBase );
 	CloseLibrary( SocketBase );

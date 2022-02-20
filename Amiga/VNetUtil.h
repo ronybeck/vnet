@@ -9,6 +9,7 @@
 #define AMIGA_VNETUTIL_H_
 
 #if DBGOUT == 1
+#include <stdio.h>
 #define dbglog( format, ... ) printf( format, ##__VA_ARGS__ );
 #else
 #define dbglog( format, ... )  //printf( format, ##__VA_ARGS__ );

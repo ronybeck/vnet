@@ -8,7 +8,7 @@
 #include "DirectoryList.h"
 
 
-#define DBGOUT 0
+#define DBGOUT 1
 
 #ifdef __GNUC__
 #if DBGOUT
@@ -67,9 +67,10 @@ static unsigned getDirectoryNumberOfEntries( char *path, unsigned int *filenameB
 	struct ExAllData *buffer = AllocVec( bufferLen, MEMF_FAST|MEMF_CLEAR );
 	struct ExAllData *currentEntry = NULL;
 	BOOL more;
+	control->eac_LastKey = 0;
 	do
 	{
-		more = ExAll( dirLock, buffer, bufferLen, ED_OWNER, control );
+		more = ExAll( dirLock, buffer, bufferLen, ED_COMMENT, control );
 		if ((!more) && (IoErr() != ERROR_NO_MORE_ENTRIES))
 		{
 			break;
@@ -92,6 +93,7 @@ static unsigned getDirectoryNumberOfEntries( char *path, unsigned int *filenameB
 					break;
 			}
 			*filenameBufferLen += (unsigned int)strlen( (char*)currentEntry->ed_Name );
+			dbglog( "Found file '%s'.\n", (char*)currentEntry->ed_Name );
 			currentEntry = currentEntry->ed_Next;
 		}
 	}while( more );
@@ -200,10 +202,11 @@ ProtocolMessageDirectoryList_t *getDirectoryList( char *path )
 	struct ExAllData *buffer = AllocVec( bufferLen, MEMF_FAST|MEMF_CLEAR );
 	struct ExAllData *currentEntry = NULL;
 	//int debugLimit=20;
+	control->eac_LastKey = 0;
 	BOOL more;
 	do
 	{
-		more = ExAll( dirLock, buffer, bufferLen, ED_OWNER, control );
+		more = ExAll( dirLock, buffer, bufferLen, ED_COMMENT, control );
 		if ((!more) && (IoErr() != ERROR_NO_MORE_ENTRIES))
 		{
 			dbglog( "[getDirectoryList] No more entries.\n" );

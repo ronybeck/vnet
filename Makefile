@@ -26,17 +26,7 @@ AMIGA_SRC=	Amiga/VNetServerAmiga.c \
 ${VNetAmigaServer}: 
 	$(VNETCC) ${VNET_CFLAGS} ${VNET_Includes} -I./Amiga/ -I. ${AMIGA_SRC} -lamiga -o ${VNetAmigaServer}
 	
-InstallVnetServer:
-	./client os3.script
-
-cmd_client: 
-	$(CC) ${CFLAGS} amigaServer.c -lamiga -o ${TARGET}
-	g++ -g linuxClient.cpp -o client
-	
-IDCheck:
-		$(CC) ${VNET_CFLAGS} ${VNET_Includes} -I./Amiga/  WarpDetect.c  -lamiga -o IDCheck 
-	
-all: clean cmd_client ${VNetAmigaServer} IDCheck
+all: clean ${VNetAmigaServer}
 	
 clean:
-	rm -f ${TARGET} ${VNetAmigaServer} IDCheck
+	rm -f ${VNetAmigaServer}
