@@ -73,6 +73,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     setAcceptDrops(true);
 
+
     //setup network signals and slots
     connect( &m_ProtocolHandler, &ProtocolHandler::connectedToHostSignal, this, &MainWindow::onConnectedToHostSlot );
     connect( &m_ProtocolHandler, &ProtocolHandler::disconnectedFromHostSignal, this, &MainWindow::onDisconnectedFromHostSlot );
@@ -236,6 +237,16 @@ void MainWindow::dropEvent(QDropEvent *e)
     m_DialogUploadFile.startUpload( uploadList );
 }
 
+void MainWindow::dragLeaveEvent(QDragLeaveEvent *e)
+{
+    qDebug() << "DragLeaveEvent";
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent *e)
+{
+    qDebug() << "Drag move event";
+}
+
 void MainWindow::onConnectButtonReleasedSlot()
 {
     //form the QHostAddress
@@ -369,6 +380,12 @@ void MainWindow::onBrowserItemDoubleClickSlot()
 
     //Do we have this entry already?
     QSharedPointer<DirectoryListing> directoryListing = m_DirectoryListings[ currentPath ];
+    if( directoryListing.isNull() )
+    {
+        //we should get this directory then.  Seems we don't have it yet.
+        emit getRemoteDirectorySignal( newPath );
+        return;
+    }
     QSharedPointer<DirectoryListing> directoryEntry = directoryListing->findEntry( entryName );
 
     //If this is a directory that the user double clicked on
@@ -1079,6 +1096,12 @@ void MainWindow::updateFilebrowser()
 
     //Get the current listing
     QSharedPointer<DirectoryListing> listing = m_DirectoryListings[ selectedPath ];
+    if( listing.isNull() )
+    {
+        //we don't have this path yet.  We should get it
+        emit getRemoteDirectorySignal( selectedPath );
+        return;
+    }
 
     //List all the directories first
     QVectorIterator<QSharedPointer<DirectoryListing>> dirIter( listing->Entries() );

@@ -316,6 +316,9 @@
          </item>
          <item>
           <widget class="QListWidget" name="listWidgetFileBrowser">
+           <property name="dragEnabled">
+            <bool>true</bool>
+           </property>
            <property name="dragDropMode">
             <enum>QAbstractItemView::DragDrop</enum>
            </property>
@@ -360,8 +363,11 @@
            <property name="editTriggers">
             <set>QAbstractItemView::NoEditTriggers</set>
            </property>
+           <property name="dragEnabled">
+            <bool>true</bool>
+           </property>
            <property name="dragDropMode">
-            <enum>QAbstractItemView::DropOnly</enum>
+            <enum>QAbstractItemView::DragDrop</enum>
            </property>
            <property name="alternatingRowColors">
             <bool>true</bool>
@@ -480,7 +486,7 @@
      <x>0</x>
      <y>0</y>
      <width>774</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

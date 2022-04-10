@@ -24,43 +24,241 @@
 #include "protocol.h"
 #include "VNetUtil.h"
 
+#define VREG_BOARD_Unknown      0x00      // Unknown
+#define VREG_BOARD_V600         0x01      // V600
+#define VREG_BOARD_V500         0x02      // V500
+#define VREG_BOARD_V4           0x03      // V4-500
+#define VREG_BOARD_ICEDRAKE     0x04      // V4-Icedrake
+#define VREG_BOARD_V4SA         0x05      // V4SA
+#define VREG_BOARD_V1200        0x06      // V1200
+#define VREG_BOARD_V4000        0x07      // V4000
+#define VREG_BOARD_VCD32        0x08      // VCD32
+#define VREG_BOARD_Future       0x09      // Future
+
+#define VREG_BOARD              0xDFF3FC  // [16-bits] BoardID [HIGH-Byte: MODEL, LOW-Byte: xFREQ]
+
 extern char g_KeepServerRunning;
 
 static void discoveryThread();
 
+static void ExecVersionToKickstartVersion( UBYTE execVersion, UBYTE *major, UBYTE *minor, UBYTE *rev )
+{
+	if( execVersion < 31 )
+	{
+		*major = 1;
+		*minor = 0;
+		*rev = 0;
+		return;
+	}
+	if( execVersion < 33 )
+	{
+		*major = 1;
+		*minor = 1;
+		*rev = 0;
+		return;
+	}
+	if( execVersion < 34 )
+	{
+		*major = 1;
+		*minor = 2;
+		*rev = 0;
+		return;
+	}
+	if( execVersion < 36 )
+	{
+		*major = 1;
+		*minor = 3;
+		*rev = 0;
+		return;
+	}
+	if( execVersion == 36 )
+	{
+		*major = 2;
+		*minor = 0;
+		*rev = 0;
+		return;
+	}
+	if( execVersion == 37 )
+	{
+		*major = 2;
+		*minor = 0;
+		*rev = 4;
+		return;
+	}
+	if( execVersion == 37 )
+	{
+		*major = 2;
+		*minor = 0;
+		*rev = 4;
+		return;
+	}
+
+	if( execVersion <= 39 )
+	{
+		*major = 3;
+		*minor = 9;
+		*rev = 0;
+		return;
+	}
+
+	if( execVersion == 40 )
+	{
+		*major = 3;
+		*minor = 1;
+		*rev = 0;
+		return;
+	}
+
+	if( execVersion <= 45 )
+	{
+		*major = 3;
+		*minor = 9;
+		*rev = 0;
+		return;
+	}
+
+	if( execVersion == 46 )
+	{
+		*major = 3;
+		*minor = 1;
+		*rev = 4;
+		return;
+	}
+
+	if( execVersion == 47 )
+	{
+		*major = 3;
+		*minor = 2;
+		*rev = 0;
+		return;
+	}
+
+	if( execVersion == 51 )
+	{
+		//Apollo OS
+		*major = 3;
+		*minor = 1;
+		*rev = 0;
+		return;
+	}
+}
+
+
 static void getOSVersion( char *version, LONG len )
 {
 	struct Library *ExecLibrary = NULL;
+	UBYTE min=0, maj=0, rev=0;
 
 	//Did we get the DOSBase
 	dbglog( "[getOSVersion] Opening Exec Library.\n" );
 	ExecLibrary = OpenLibrary( "exec.library", 0 );
 	if( ExecLibrary != NULL )
 	{
-		dbglog( "[getOSVersion] Exec Library opened.  Examining version.\n" );
-		snprintf( version, len, "%d.%d", ExecLibrary->lib_Version, ExecLibrary->lib_Revision );
-		dbglog( "[getOSVersion] OS Version is %s.\n", version );
+		memset( version, 0, len );
+
+		//So we can get the exec version now
+		dbglog( "[getOSVersion] Exec Library opened.  Exec version: %d.%d\n", ExecLibrary->lib_Version, ExecLibrary->lib_Revision );
+
+		//Lets translate that to a kickstart version
+		ExecVersionToKickstartVersion( ExecLibrary->lib_Version, &maj, &min, &rev );
+
+		//Apollo OS doesn't have a version that can be read yet.   This will change soon
+		//According to WillemDrijver: Next release will have ENV:APOLLOVERSION with R8.1 inside to mark version
+		if( ExecLibrary->lib_Version == 51 )
+		{
+			//Nothing to do here yet
+		}else
+		{
+			//set the version string
+			snprintf( version, len, "%d.%d.%d", maj, min, rev );
+			dbglog( "[getOSVersion] OS Version is %s.\n", version );
+		}
+		CloseLibrary( ExecLibrary );
 	}
 	dbglog( "[getOSVersion] Done.\n" );
 }
+
+static void getOSName( char *name, LONG len )
+{
+	struct Library *ExecLibrary = NULL;
+	UBYTE min=0, maj=0, rev=0;
+
+	//Did we get the DOSBase
+	dbglog( "[getOSName] Opening Exec Library.\n" );
+	ExecLibrary = OpenLibrary( "exec.library", 0 );
+	if( ExecLibrary != NULL )
+	{
+		//So we can get the exec version now
+		dbglog( "[getOSName] Exec Library opened.  Exec version: %d.%d\n", ExecLibrary->lib_Version, ExecLibrary->lib_Revision );
+
+		//AROS has exec version 40.0.  AOS has a variety of numbers
+		memset( name, 0, len );
+		if( ExecLibrary->lib_Version == 51 /* && ExecLibrary->lib_Revision == 0 */ )
+		{
+			snprintf( name, len, "%s", "Apollo" );
+		}else
+		{
+			snprintf( name, len, "%s", "AmigaOS" );
+		}
+		dbglog( "[getOSName] OS Name: %s\n", name );
+		CloseLibrary( ExecLibrary );
+	}
+	dbglog( "[getOSName] Done.\n" );
+}
+
+static void getHardwareName( char *name, LONG len )
+{
+	dbglog( "[getHardwareName] start.\n" );
+	//zero the string
+	memset( name, 0, len );
+
+	//Vampire boards store their model in a register
+	unsigned short *boardRegister = (unsigned short*)0x00DFF3FC;
+	UBYTE boardID = ( *boardRegister >> 8 );
+	dbglog( "[getHardwareName] board register value: 0x%08X ( 0x%02X).\n", (unsigned int)(*boardRegister), boardID );
+
+	//Now detecht which vampire this is
+	switch( boardID )
+	{
+		case VREG_BOARD_V600:
+			snprintf( name, len, "%s", "V600" );
+			break;
+		case VREG_BOARD_V500:
+			snprintf( name, len, "%s", "V500" );
+			break;
+		case VREG_BOARD_V4:
+			snprintf( name, len, "%s", "FB500" );
+			break;
+		case VREG_BOARD_ICEDRAKE:
+			snprintf( name, len, "%s", "Icedrake" );
+			break;
+		case VREG_BOARD_V4SA:
+			snprintf( name, len, "%s", "V4" );
+			break;
+		case VREG_BOARD_V1200:
+			snprintf( name, len, "%s", "V1200" );
+			break;
+		case VREG_BOARD_V4000:
+			snprintf( name, len, "%s", "V4000" );
+			break;
+		case VREG_BOARD_VCD32:
+			snprintf( name, len, "%s", "VCD32" );
+			break;
+		default:
+			snprintf( name, len, "%s", "Amiga" );
+			break;
+	}
+
+	dbglog( "[getHardwareName] Hardware model: %s.\n", name );
+	dbglog( "[getHardwareName] end.\n" );
+}
+
+
 
 void startDiscoveryThread()
 {
 	if ( DOSBase )
 	{
-
-		/*
-		BPTR consoleHandle = Open( "CONSOLE:", MODE_OLDFILE );
-		if( consoleHandle )
-		{
-			dbglog( "[startDiscoveryThread] Console handle opened.\n" );
-		}
-		else
-		{
-			dbglog( "[startDiscoveryThread] Console handle NOT opened.\n" );
-		}
-		*/
-
 		//Start a client thread
 		struct TagItem tags[] = {
 				{ NP_StackSize,		8192 },
@@ -111,7 +309,7 @@ static void printInterfaceDebug()
 	ReleaseInterfaceList( interfaceList );
 }
 
-#define ENABLE_DISCOVERY_REPLY 0
+#define ENABLE_DISCOVERY_REPLY 1
 static void discoveryThread()
 {
 	dbglog( "[discoveryThread] Client thread started.\n" );
@@ -120,7 +318,9 @@ static void discoveryThread()
 	struct Library *SocketBase = NULL;
 	int returnCode = 0;
 	int yes = 1;
-	char *osVersion[32];
+	char *osVersion[8];
+	char *osName[8];
+	char *hardwareName[8];
 
 	//Did we get the DOSBase
 	DOSBase = OpenLibrary( "dos.library", 0 );
@@ -141,7 +341,7 @@ static void discoveryThread()
 		return;
 	}
 
-	printInterfaceDebug();
+	//printInterfaceDebug();
 
 #if ENABLE_DISCOVERY_REPLY
 	//Open a new server port for this client
@@ -267,7 +467,7 @@ static void discoveryThread()
 
 	//Add default Values
 	strncpy( announceMessage->name, "Unnamed", sizeof( announceMessage->name ) );
-	strncpy( announceMessage->osName, "ApolloOS?", sizeof( announceMessage->osName ) );
+	strncpy( announceMessage->osName, "ApolloOS", sizeof( announceMessage->osName ) );
 	strncpy( announceMessage->osVersion, "-", sizeof( announceMessage->osVersion ) );
 	strncpy( announceMessage->hardware, "Unknown", sizeof( announceMessage->hardware ) );
 
@@ -285,34 +485,62 @@ static void discoveryThread()
 			dbglog( "[discoverySocket] ToolTypes Name: %s\n", name );
 			strncpy( announceMessage->name, name, sizeof( announceMessage->name ) );
 		}
+
+		//Get the OS Name from Tool Types
 		STRPTR osname = FindToolType( diskObject->do_ToolTypes, (STRPTR)"osname" );
 		if( osname )
 		{
 			dbglog( "[discoverySocket] ToolTypes osname: %s\n", osname );
 			strncpy( announceMessage->osName, osname, sizeof( announceMessage->name ) );
-		}
-		//getOSVersion( osVersion, sizeof( osVersion ) );	//WIP
-		if( strlen( osVersion ) == 0 )
-		{
-			STRPTR osversion = FindToolType( diskObject->do_ToolTypes, "osversion" );
-			if( osname )
-			{
-				dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osversion );
-				strncpy( announceMessage->osVersion, osversion, sizeof( announceMessage->osVersion ) );
-			}
 		}else
 		{
-			dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osVersion );
-			strncpy( announceMessage->osVersion, osVersion, sizeof( announceMessage->osVersion ) );
+			//Ok, there wasn't a name in the tool types.  Let's try and detect it.
+			getOSName( osName, sizeof( osName ) );
+			if( strlen( osName ) > 0 )
+			{
+				dbglog( "[discoverySocket] detected osname: %s\n", osName );
+				strncpy( announceMessage->osName, osName, sizeof( announceMessage->name ) );
+			}
 		}
+
+		STRPTR osversion = FindToolType( diskObject->do_ToolTypes, "osversion" );
+		if( osname )
+		{
+			dbglog( "[discoverySocket] ToolTypes osversion: %s\n", osversion );
+			strncpy( announceMessage->osVersion, osversion, sizeof( announceMessage->osVersion ) );
+		}else
+		{
+			getOSVersion( osVersion, sizeof( osVersion ) );
+			if( strlen( osVersion ) > 0 )
+			{
+				dbglog( "[discoverySocket] detected osversion: %s\n", osVersion );
+				strncpy( announceMessage->osVersion, osVersion, sizeof( announceMessage->osVersion ) );
+			}
+		}
+
 		STRPTR hardware = FindToolType( diskObject->do_ToolTypes, (STRPTR)"hardware" );
 		if( osname )
 		{
 			dbglog( "[discoverySocket] ToolTypes hardware: %s\n", hardware );
 			strncpy( announceMessage->hardware, hardware, sizeof( announceMessage->hardware ) );
+		}else
+		{
+			getHardwareName( hardwareName, sizeof( hardwareName ) );
+			if( strlen( hardwareName ) > 0 )
+			{
+				dbglog( "[discoverySocket] detected hardware: %s\n", hardwareName );
+				strncpy( announceMessage->hardware, hardwareName, sizeof( announceMessage->hardware ) );
+			}
 		}
 		FreeDiskObject( diskObject );
 	}
+
+	//Make sure that all the strings are NULL terminated correctly
+	announceMessage->name[ sizeof( announceMessage->name ) - 1 ] = 0;
+	announceMessage->osName[ sizeof( announceMessage->osName ) - 1 ] = 0;
+	announceMessage->osVersion[ sizeof( announceMessage->osVersion ) - 1 ] = 0;
+	announceMessage->hardware[ sizeof( announceMessage->hardware ) - 1 ]  = 0;
+
 
 	//Addressing information
 	struct sockaddr *requestorAddress = AllocVec( sizeof( *requestorAddress ), MEMF_FAST|MEMF_CLEAR );
@@ -361,8 +589,8 @@ static void discoveryThread()
 #endif
 		//dbglog( "[discoverySocket] Sent %d bytes.\n", bytesSent );
 		bytesSent = sendto( broadcastSocket, announceMessage, announceMessage->header.length, 0, (struct sockaddr *)&broadcastAddr, sizeof( broadcastAddr ) );
-		dbglog( "[discoverySocket] Sent %d bytes.\n", bytesSent );
-		//(void)bytesSent;
+		//dbglog( "[discoverySocket] Sent %d bytes.\n", bytesSent );
+		(void)bytesSent;
 
 
 		//To prevent overloading the amiga....

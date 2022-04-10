@@ -10,6 +10,7 @@
         <file>icons/CommodoreHW.png</file>
         <file>icons/VampireHW.png</file>
         <file>icons/FirebirdHW.png</file>
+        <file>icons/IcedrakeHW.png</file>
     </qresource>
     <qresource prefix="/"/>
 </RCC>

@@ -46,13 +46,21 @@ void ScanningWindow::onNewDeviceDiscoveredSlot( QSharedPointer<VNetHost> host )
     QListWidgetItem *item = new QListWidgetItem();
     item->setText( getItemName( host->Name(), host->Address() ) );
     QString hint( "Name: " + host->Name() + "\nOS: " + host->OsName() + " " + host->OsVersion() + "\nHardware: " + host->Hardware() + "\nAddress: " + host->Address().toString() );
-    if( host->Hardware().contains( "V2" ) || host->Hardware().contains( "V4" ) || host->Hardware().contains( "V500" ) )
+    if( host->Hardware().contains( "V2", Qt::CaseInsensitive ) ||
+        host->Hardware().contains( "V4", Qt::CaseInsensitive ) ||
+        host->Hardware().contains( "V500", Qt::CaseInsensitive ) ||
+        host->Hardware().contains( "V600", Qt::CaseInsensitive ) ||
+        host->Hardware().contains( "V1200", Qt::CaseInsensitive ))
     {
         item->setIcon( QPixmap( ":/browser/icons/VampireHW.png" ) );
     }
-    else if( host->Hardware().contains( "FB" ) || host->Hardware().contains( "FB500" ))
+    else if( host->Hardware().contains( "FB", Qt::CaseInsensitive ) || host->Hardware().contains( "FB500", Qt::CaseInsensitive ))
     {
         item->setIcon( QPixmap( ":/browser/icons/FirebirdHW.png" ) );
+    }
+    else if( host->Hardware().contains( "Icedrake", Qt::CaseInsensitive ))
+    {
+        item->setIcon( QPixmap( ":/browser/icons/IcedrakeHW.png" ) );
     }
     else
     {

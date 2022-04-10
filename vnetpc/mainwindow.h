@@ -32,7 +32,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void closeEvent (QCloseEvent *event);
+    void closeEvent (QCloseEvent *event) override;
 
     bool ConfirmWindowClose() const;
     void setConfirmWindowClose(bool newConfirmWindowClose);
@@ -81,8 +81,10 @@ public slots:
     void onReconnectTimerExpired();
 
     //Drag and Drop
-    void dragEnterEvent(QDragEnterEvent *e);
-    void dropEvent(QDropEvent *e);
+    void dragEnterEvent(QDragEnterEvent *e) override;
+    void dropEvent(QDropEvent *e) override;
+    void dragLeaveEvent( QDragLeaveEvent *e ) override;
+    void dragMoveEvent( QDragMoveEvent *e ) override;
     //void dragEvent(QDragEnterEvent *e);
 
 signals:

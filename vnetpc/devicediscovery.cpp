@@ -29,8 +29,10 @@ DeviceDiscovery::DeviceDiscovery(QObject *parent) :
     onScanTimerTimeoutSlot();
 }
 
+
 void DeviceDiscovery::onScanTimerTimeoutSlot()
 {
+
     //Form the message we will send to all clients
     ProtocolMessage_DeviceDiscovery_t message;
     message.header.token = qToBigEndian<quint32>( MAGIC_TOKEN );
@@ -58,6 +60,7 @@ void DeviceDiscovery::onScanTimerTimeoutSlot()
         }
     }
 }
+
 
 void DeviceDiscovery::onSocketReadReadySlot()
 {
